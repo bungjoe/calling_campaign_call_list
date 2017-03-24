@@ -1,0 +1,66 @@
+create or replace procedure camp_raw_all_data as
+begin
+    /* Update the comm record if there is some rows missing from yesterday's row */
+    merge into AP_CRM.CAMP_COMM_RECORD_TT crt
+    using (
+              SELECT SKP_CLIENT
+             , SKF_COMMUNICATION_RECORD
+             , DTIME_INSERTED
+             , DATE_CALL
+             , CODE_CHANNEL
+             , CODE_TYPE_CODE
+             , CODE_SUBTYPE
+             , CODE_RESULT_TYPE
+             , CODE_STATUS
+             , SKP_COMMUNICATION_CHANNEL
+             , SKP_COMMUNICATION_TYPE
+             , SKP_COMMUNICATION_SUBTYPE
+             , SKP_COMMUNICATION_RESULT_TYPE
+             , SKP_COMMUNICATION_STATUS
+             , to_char(TEXT_NOTE) as TEXT_NOTE
+             , to_char(TEXT_CONTACT) as TEXT_CONTACT
+              FROM OWNER_DWH.F_COMMUNICATION_RECORD_TT
+              WHERE dtime_inserted >= trunc(sysdate)-2 and dtime_inserted <= trunc(sysdate)
+              and code_channel in ('OE', 'OC')
+              and code_type_code = 'MPF'
+          ) src
+    on (crt.skp_client = src.skp_client)
+    when not matched then insert 
+    (
+         SKP_CLIENT
+       , SKF_COMMUNICATION_RECORD
+       , DTIME_INSERTED
+       , DATE_CALL
+       , CODE_CHANNEL
+       , CODE_TYPE_CODE
+       , CODE_SUBTYPE
+       , CODE_RESULT_TYPE
+       , CODE_STATUS
+       , SKP_COMMUNICATION_CHANNEL
+       , SKP_COMMUNICATION_TYPE
+       , SKP_COMMUNICATION_SUBTYPE
+       , SKP_COMMUNICATION_RESULT_TYPE
+       , SKP_COMMUNICATION_STATUS
+       , TEXT_NOTE
+       , TEXT_CONTACT
+    )
+    values (
+         src.SKP_CLIENT
+       , src.SKF_COMMUNICATION_RECORD
+       , src.DTIME_INSERTED
+       , src.DATE_CALL
+       , src.CODE_CHANNEL
+       , src.CODE_TYPE_CODE
+       , src.CODE_SUBTYPE
+       , src.CODE_RESULT_TYPE
+       , src.CODE_STATUS
+       , src.SKP_COMMUNICATION_CHANNEL
+       , src.SKP_COMMUNICATION_TYPE
+       , src.SKP_COMMUNICATION_SUBTYPE
+       , src.SKP_COMMUNICATION_RESULT_TYPE
+       , src.SKP_COMMUNICATION_STATUS
+       , src.TEXT_NOTE
+       , src.TEXT_CONTACT
+    );
+    commit;
+end;
