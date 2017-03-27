@@ -9,8 +9,9 @@ Begin
   AP_PUBLIC.CORE_LOG_PKG.pInit(acLogModule => 'AP_CRM', acLogProcess => 'CONT_ATTMPT_F_UPDATE') ;
 
   Ap_Public.Core_Log_Pkg.Pstart( Acloginfo => 'UPDATE DATA CONT_ATTMPT_F' ) ;
-  EXECUTE IMMEDIATE 'TRUNCATE TABLE CONTACT_ATTEMPT_FACT_CRM';
-  INSERT /*+APPEND*/ INTO CONTACT_ATTEMPT_FACT_CRM
+  delete from ap_crm.contact_attempt_fact_crm where date_call >= Trunc(Sysdate-1,'DD');
+  commit;
+  INSERT INTO CONTACT_ATTEMPT_FACT_CRM
   With Ifa As 
   (
     Select /*+ MATERIALIZE */ Interaction_Id,Media_Server_Ixn_Guid From Owner_Int.Vh_Gen_Interaction_Fact
