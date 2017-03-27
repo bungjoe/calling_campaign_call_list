@@ -1,0 +1,63 @@
+--------------------------------------------------------
+--  DDL for Procedure CONT_ATTMPT_F_UPDATE_PROC
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE PROCEDURE "AP_CRM"."CONT_ATTMPT_F_UPDATE_PROC" 
+  IS
+Begin
+  AP_PUBLIC.CORE_LOG_PKG.pInit(acLogModule => 'AP_CRM', acLogProcess => 'CONT_ATTMPT_F_UPDATE') ;
+
+  Ap_Public.Core_Log_Pkg.Pstart( Acloginfo => 'UPDATE DATA CONT_ATTMPT_F' ) ;
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE CONTACT_ATTEMPT_FACT_CRM';
+  INSERT /*+APPEND*/ INTO CONTACT_ATTEMPT_FACT_CRM
+  With Ifa As 
+  (
+    Select /*+ MATERIALIZE */ Interaction_Id,Media_Server_Ixn_Guid From Owner_Int.Vh_Gen_Interaction_Fact
+    --Where Start_Date_Time_Key >=( Add_Months(Trunc(Sysdate-1,'MM'),-6) - Date '1970-01-01' ) * 86400 - 25200
+    Where Start_Date_Time_Key >=( Trunc(Sysdate-1,'DD') - Date '1970-01-01' ) * 86400 - 25200
+  ),
+  Irf As 
+  (
+    Select /*+ MATERIALIZE */ Interaction_Id,Interaction_Resource_Id , Resource_Key
+    , INTERACTION_RESOURCE_ORDINAL, RING_COUNT, TECHNICAL_DESCRIPTOR_KEY
+    From OWNER_INT.vh_gen_INTERACTION_RES_FACT
+    --Where Start_Date_Time_Key >=( Add_Months(Trunc(Sysdate-1,'MM'),-6) - Date '1970-01-01' ) * 86400 - 25200
+    Where Start_Date_Time_Key >=( Trunc(Sysdate-1,'DD') - Date '1970-01-01' ) * 86400 - 25200
+  )
+  Select /*+ USE_HASH (CAF ATD DM CMP RES CRS IFA IRF TDR ) */ 
+  (timestamp '1970-01-01 00:00:00' + numtodsinterval(caf.start_ts, 'SECOND')) + numtodsinterval(7, 'Hour') as dtime_Call
+  , TRUNC((timestamp '1970-01-01 00:00:00' + numtodsinterval(caf.start_ts, 'SECOND')) + numtodsinterval(7, 'Hour')) AS DATE_Call
+  , dm.DIALING_MODE
+  , cmp.NAME
+  , res.RESOURCE_NAME, res.RESOURCE_TYPE, res.RESOURCE_SUBTYPE, res.AGENT_FIRST_NAME, res.AGENT_LAST_NAME, res.EMPLOYEE_ID
+  ,'-MISSING SOURCE-' GROUP_NAME, '-MISSING SOURCE-' GROUP_TYPE
+  , crs.CALL_RESULT, tdr.TECHNICAL_RESULT
+  , tdr.RESULT_REASON, tdr.RESOURCE_ROLE
+  , atd.CAUSE
+  , caf.start_ts, caf.end_ts, caf.contact_info, caf.attempt_ordinal, caf.record_field_1 CUID, caf.record_field_35 CONTRACT_NUMBER, caf.contact_complete_flag, caf.overdial_flag
+  --, to_char(nvl(caf.contact_dial_sched_time, to_date('01/01/3000 00:00:00', 'mm/dd/yyyy hh24:mi:ss')), 'mm/dd/yyyy hh24:mi:ss') contact_dial_sched_time
+  , nvl(caf.contact_dial_sched_time, to_date('01/01/3000 00:00:00', 'mm/dd/yyyy hh24:mi:ss')) contact_dial_sched_time
+  , ifa.interaction_id, irf.interaction_resource_id 
+  , Irf.Resource_Key, Irf.Interaction_Resource_Ordinal, Irf.Ring_Count
+  from OWNER_INT.vh_gen_CONTACT_ATTEMPT_FACT caf
+  inner join OWNER_INT.vh_gen_ATTEMPT_DISPOSITION atd on caf.ATTEMPT_DISPOSITION_KEY = atd.ATTEMPT_DISPOSITION_KEY
+  inner join OWNER_INT.vh_gen_dialing_mode dm on caf.dialing_mode_key = dm.dialing_mode_key
+  inner join OWNER_INT.vh_gen_gidb_gc_campaign cmp on caf.campaign_key = cmp.ID
+  inner join OWNER_INT.vh_gen_resource_ res on caf.RESOURCE_KEY = res.RESOURCE_KEY
+  Inner Join Owner_Int.Vh_Gen_Call_Result Crs On Caf.Call_Result_Key = Crs.Call_Result_Key
+  inner join IFA on caf.CALLID = ifa.MEDIA_SERVER_IXN_GUID
+  inner join irf on ifa.INTERACTION_ID = irf.INTERACTION_ID
+  inner join OWNER_INT.vh_gen_TECHNICAL_DESCRIPTOR tdr on irf.TECHNICAL_DESCRIPTOR_KEY = tdr.TECHNICAL_DESCRIPTOR_KEY
+  Where Caf.Campaign_Key In ('121','132')
+  and caf.Start_Date_Time_Key >=( Trunc(Sysdate-1,'DD') - Date '1970-01-01' ) * 86400 - 25200 /* Modify this line to use the partitioned key column */;
+  AP_PUBLIC.CORE_LOG_PKG.pEnd;
+  Commit;
+  AP_PUBLIC.CORE_LOG_PKG.pFinish ;
+  EXCEPTION WHEN OTHERS THEN
+  AP_PUBLIC.CORE_LOG_PKG.pError ;
+  ROLLBACK;
+  Raise;
+END ;
+
+/
